@@ -1,8 +1,10 @@
-# Codex 桌宠 Win7
+# Codex 桌宠 Windows 版
 
-一个面向 Windows 7 / 10 / 11 的轻量桌面宠物，包含自动背单词、间隔复习、喝水提醒和可配置防锁屏功能。
+一个面向 Windows 桌面的轻量宠物，包含自动背单词、间隔复习、喝水提醒和可配置防锁屏功能。
 
 > 非官方个人项目，与 OpenAI 没有隶属、授权或背书关系。Codex、OpenAI 及相关标识归其各自权利人所有。
+
+![Codex 桌宠与脚下单词气泡](docs/images/word-bubble.png)
 
 ## 功能
 
@@ -16,18 +18,26 @@
 - 设置、立即背词和退出功能集中在系统托盘
 - 不安装全局键盘或鼠标钩子
 
+![Codex 桌宠外观](docs/images/pet-preview.png)
+
+## 设置
+
+单词数量、自动提醒间隔、词库、发音、全屏暂停以及喝水提醒都可以在系统托盘设置中调整。
+
+![单词学习设置](docs/images/settings.png)
+
 ## 下载
 
-普通用户请前往仓库的 **Releases** 页面下载最新版压缩包，解压后运行 `Codex桌宠-Win7-v4.6.exe`。
+普通用户请前往仓库的 **Releases** 页面下载最新版压缩包，解压后运行 `Codex桌宠-v4.7.exe`。
 
-系统要求：Windows 7、Windows 10 或 Windows 11，.NET Framework 4.0 或更高版本。
+系统要求：Windows 7、Windows 8、Windows 8.1、Windows 10 或 Windows 11，并安装 .NET Framework 4.0 或更高版本。
 
 ## 编译
 
 在 Windows PowerShell 中运行：
 
 ```powershell
-.\build-win7.ps1
+.\build-windows.ps1
 ```
 
 脚本使用 .NET Framework 4.0 自带的 C# 编译器，不依赖 Visual Studio。
