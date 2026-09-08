@@ -1,0 +1,13 @@
+# Build outputs and local runtime files
+*.exe
+*.zip
+*.pdb
+*.log
+bin/
+obj/
+
+# Local editor and OS files
+.vs/
+.vscode/
+Thumbs.db
+Desktop.ini
