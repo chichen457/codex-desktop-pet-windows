@@ -66,7 +66,7 @@ class BubbleForm:Form {
 }
 
 sealed class WordCardForm:BubbleForm {
-    readonly Word word; readonly Action<int,bool> grade; readonly bool autoSpeak; readonly Label title,phonetic,meaning; readonly Button known,unknown,sound,reveal; bool revealed;
+    readonly Word word; readonly Action<int,bool> grade; readonly bool autoSpeak; readonly Label title,phonetic,meaning; readonly Button known,unknown,sound,reveal; bool revealed,committed,corrected; int pending=-1; System.Windows.Forms.Timer feedbackTimer;
     public WordCardForm(Word w,bool speakOn,bool silent,Action<int,bool> onGrade){word=w;grade=onGrade;autoSpeak=speakOn;SilentShow=silent;Text="Codex 单词提示";ClientSize=new Size(286,116);KeyPreview=true;
         title=TextLabel(w.Text,14,9,150,29,17,true,Light);title.Cursor=Cursors.Hand;title.Click+=delegate{Speak();};Controls.Add(title);
         phonetic=TextLabel(w.Phonetic.Length>0?w.Phonetic:"点击发音",14,36,190,22,9,false,Color.FromArgb(142,177,255));phonetic.Cursor=Cursors.Hand;phonetic.Click+=delegate{Speak();};Controls.Add(phonetic);
@@ -75,8 +75,11 @@ sealed class WordCardForm:BubbleForm {
         unknown=SmallButton("不认识",48,84,86,25,Color.FromArgb(83,91,111));unknown.Click+=delegate{Submit(false);};Controls.Add(unknown);known=SmallButton("认识",151,84,86,25,Theme.Blue);known.Click+=delegate{Submit(true);};Controls.Add(known);
         KeyDown+=delegate(object s,KeyEventArgs e){if(e.KeyCode==Keys.Escape)Close();};Shown+=delegate{if(autoSpeak)Speak();};
     }
-    void ToggleMeaning(){revealed=!revealed;meaning.Visible=revealed;reveal.Text=revealed?"隐":"释";}
-    void Submit(bool yes){grade(yes?2:0,revealed);Close();}
+    void ToggleMeaning(){if(pending>=0)return;revealed=!revealed;meaning.Visible=revealed;reveal.Text=revealed?"隐":"释";}
+    void Submit(bool yes){int choice=yes?2:0;if(pending>=0){if(choice!=pending)corrected=true;pending=choice;ShowChoice();return;}if(revealed){Commit(choice,true);Close();return;}pending=choice;revealed=true;meaning.Visible=true;reveal.Text="释";reveal.Enabled=false;ShowChoice();feedbackTimer=new System.Windows.Forms.Timer();feedbackTimer.Interval=4000;feedbackTimer.Tick+=delegate{feedbackTimer.Stop();Commit(pending,corrected);Close();};feedbackTimer.Start();}
+    void ShowChoice(){known.BackColor=pending==2?Theme.Green:Color.FromArgb(83,91,111);unknown.BackColor=pending==0?Theme.Red:Color.FromArgb(83,91,111);}
+    void Commit(int choice,bool wasRevealed){if(committed)return;committed=true;grade(choice,wasRevealed);}
+    protected override void OnFormClosing(FormClosingEventArgs e){if(pending>=0&&!committed)Commit(pending,corrected);if(feedbackTimer!=null){feedbackTimer.Stop();feedbackTimer.Dispose();feedbackTimer=null;}base.OnFormClosing(e);}
     static string Short(string s,int n){return s.Length<=n?s:s.Substring(0,n-1)+"…";}
     void Speak(){try{using(SpeechSynthesizer s=new SpeechSynthesizer()){s.Rate=-1;s.SpeakAsync(word.Text);}}catch{}}
 }
