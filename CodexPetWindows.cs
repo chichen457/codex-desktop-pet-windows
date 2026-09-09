@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Speech.Synthesis;
@@ -41,6 +42,10 @@ sealed class Word {
     public string Key { get { return Book+":"+Text.ToLowerInvariant(); } }
 }
 
+sealed class MemoryState {
+    public double Stability=0.05,Difficulty=5; public DateTime Due=DateTime.UtcNow,Last=DateTime.UtcNow; public int Ok,Bad;
+}
+
 sealed class Theme {
     public static readonly Color Bg=Color.FromArgb(246,248,252), Card=Color.White, Ink=Color.FromArgb(28,34,49), Muted=Color.FromArgb(96,105,124), Blue=Color.FromArgb(54,106,255), Pale=Color.FromArgb(231,237,255), Green=Color.FromArgb(35,156,107), Orange=Color.FromArgb(232,139,45), Red=Color.FromArgb(215,75,75);
     public static Button Button(string text,int x,int y,int w,int h,Color color){Button b=new Button();b.Text=text;b.SetBounds(x,y,w,h);b.FlatStyle=FlatStyle.Flat;b.FlatAppearance.BorderSize=0;b.BackColor=color;b.ForeColor=Color.White;b.Font=new Font("Microsoft YaHei UI",9,FontStyle.Bold);return b;}
@@ -61,16 +66,17 @@ class BubbleForm:Form {
 }
 
 sealed class WordCardForm:BubbleForm {
-    readonly Word word; readonly Action<int> grade; readonly bool autoSpeak; readonly Label title,phonetic,meaning; readonly Button known,unknown,sound;
-    public WordCardForm(Word w,bool speakOn,bool silent,Action<int> onGrade){word=w;grade=onGrade;autoSpeak=speakOn;SilentShow=silent;Text="Codex 单词提示";ClientSize=new Size(286,116);KeyPreview=true;
-        title=TextLabel(w.Text,14,9,162,29,17,true,Light);title.Cursor=Cursors.Hand;title.Click+=delegate{Speak();};Controls.Add(title);
-        phonetic=TextLabel(w.Phonetic.Length>0?w.Phonetic:"点击发音",14,36,215,22,9,false,Color.FromArgb(142,177,255));phonetic.Cursor=Cursors.Hand;phonetic.Click+=delegate{Speak();};Controls.Add(phonetic);
-        sound=SmallButton("▶",239,12,32,27,Theme.Blue);sound.Click+=delegate{Speak();};Controls.Add(sound);
-        meaning=TextLabel(Short(w.Meaning,34),14,59,255,22,9,false,Light);Controls.Add(meaning);
+    readonly Word word; readonly Action<int,bool> grade; readonly bool autoSpeak; readonly Label title,phonetic,meaning; readonly Button known,unknown,sound,reveal; bool revealed;
+    public WordCardForm(Word w,bool speakOn,bool silent,Action<int,bool> onGrade){word=w;grade=onGrade;autoSpeak=speakOn;SilentShow=silent;Text="Codex 单词提示";ClientSize=new Size(286,116);KeyPreview=true;
+        title=TextLabel(w.Text,14,9,150,29,17,true,Light);title.Cursor=Cursors.Hand;title.Click+=delegate{Speak();};Controls.Add(title);
+        phonetic=TextLabel(w.Phonetic.Length>0?w.Phonetic:"点击发音",14,36,190,22,9,false,Color.FromArgb(142,177,255));phonetic.Cursor=Cursors.Hand;phonetic.Click+=delegate{Speak();};Controls.Add(phonetic);
+        sound=SmallButton("▶",205,12,30,27,Theme.Blue);sound.Click+=delegate{Speak();};Controls.Add(sound);reveal=SmallButton("释",241,12,30,27,Color.FromArgb(83,91,111));reveal.Click+=delegate{ToggleMeaning();};Controls.Add(reveal);
+        meaning=TextLabel(Short(w.Meaning,34),14,59,255,22,9,false,Light);meaning.Visible=false;Controls.Add(meaning);
         unknown=SmallButton("不认识",48,84,86,25,Color.FromArgb(83,91,111));unknown.Click+=delegate{Submit(false);};Controls.Add(unknown);known=SmallButton("认识",151,84,86,25,Theme.Blue);known.Click+=delegate{Submit(true);};Controls.Add(known);
         KeyDown+=delegate(object s,KeyEventArgs e){if(e.KeyCode==Keys.Escape)Close();};Shown+=delegate{if(autoSpeak)Speak();};
     }
-    void Submit(bool yes){grade(yes?2:0);Close();}
+    void ToggleMeaning(){revealed=!revealed;meaning.Visible=revealed;reveal.Text=revealed?"隐":"释";}
+    void Submit(bool yes){grade(yes?2:0,revealed);Close();}
     static string Short(string s,int n){return s.Length<=n?s:s.Substring(0,n-1)+"…";}
     void Speak(){try{using(SpeechSynthesizer s=new SpeechSynthesizer()){s.Rate=-1;s.SpeakAsync(word.Text);}}catch{}}
 }
@@ -127,10 +133,13 @@ sealed class PetForm:Form {
     void Up(object s,MouseEventArgs e){Capture=false;if(dragging){Location=Visible(Location);Write("X",Left);Write("Y",Top);}else if(e.Button==MouseButtons.Left)Play(rnd.Next(2)==0?"wave":"jump");}
     void Play(string a){action=a;actionFrame=frame;actionUntil=DateTime.UtcNow.AddSeconds(a=="jump"?1.4:1.2);Invalidate();}
     void OpenWord(){OpenWord(false);}
-    void OpenWord(bool automatic){if(waterCard!=null&&!waterCard.IsDisposed){pendingWord=true;if(!automatic)waterCard.Flash();SetFoot("先喝水哦",TimeSpan.FromSeconds(4));return;}if(wordCard!=null&&!wordCard.IsDisposed){if(!automatic)wordCard.Flash();return;}Word w=NextWord();if(w==null){SetFoot("词库为空",TimeSpan.FromSeconds(4));return;}MarkSeen(w);wordCard=new WordCardForm(w,autoSpeak,automatic,delegate(int grade){Grade(w,grade);Play(grade>=2?"happy":"think");});wordCard.FormClosed+=delegate{wordCard=null;SetFoot("",TimeSpan.Zero);if(pendingWater){pendingWater=false;BeginInvoke(new MethodInvoker(OpenWater));}};wordCard.Show(this);PositionBubble(wordCard);SetFoot("",TimeSpan.Zero);Play("wave");}
-    Word NextWord(){List<Word> pool=Pool();List<Word> due=new List<Word>();foreach(Word w in pool){string[] p=ReadString("S_"+Hash(w.Key),"").Split('|');long t;if(p.Length>1&&long.TryParse(p[1],out t)&&t<=DateTime.UtcNow.Ticks)due.Add(w);}if(due.Count>0)return due[rnd.Next(due.Count)];int count=ReadString("NewDate","")==DateTime.Today.ToString("yyyy-MM-dd")?Read("NewCount",0,0,999):0;if(count<dailyNew){foreach(Word w in Shuffle(pool))if(ReadString("S_"+Hash(w.Key),"").Length==0)return w;}List<Word> learned=new List<Word>();foreach(Word w in pool)if(ReadString("S_"+Hash(w.Key),"").Length>0)learned.Add(w);return learned.Count>0?learned[rnd.Next(learned.Count)]:(pool.Count>0?pool[rnd.Next(pool.Count)]:null);}
+    void OpenWord(bool automatic){if(waterCard!=null&&!waterCard.IsDisposed){pendingWord=true;if(!automatic)waterCard.Flash();SetFoot("先喝水哦",TimeSpan.FromSeconds(4));return;}if(wordCard!=null&&!wordCard.IsDisposed){if(!automatic)wordCard.Flash();return;}Word w=NextWord();if(w==null){SetFoot("词库为空",TimeSpan.FromSeconds(4));return;}MarkSeen(w);wordCard=new WordCardForm(w,autoSpeak,automatic,delegate(int grade,bool revealed){Grade(w,grade,revealed);Play(grade>=2?"happy":"think");});wordCard.FormClosed+=delegate{wordCard=null;SetFoot("",TimeSpan.Zero);if(pendingWater){pendingWater=false;BeginInvoke(new MethodInvoker(OpenWater));}};wordCard.Show(this);PositionBubble(wordCard);SetFoot("",TimeSpan.Zero);Play("wave");}
+    Word NextWord(){List<Word> pool=Pool();List<Word> due=new List<Word>();foreach(Word w in pool){MemoryState m=LoadMemory(w);if(m!=null&&m.Due<=DateTime.UtcNow)due.Add(w);}if(due.Count>0)return due[rnd.Next(due.Count)];int count=ReadString("NewDate","")==DateTime.Today.ToString("yyyy-MM-dd")?Read("NewCount",0,0,999):0;if(count<dailyNew){foreach(Word w in Shuffle(pool))if(ReadString("S_"+Hash(w.Key),"").Length==0)return w;}Word weakest=null;double lowest=2;foreach(Word w in pool){MemoryState m=LoadMemory(w);if(m==null)continue;double r=Recall(m,DateTime.UtcNow);if(r<lowest){lowest=r;weakest=w;}}return weakest!=null?weakest:(pool.Count>0?pool[rnd.Next(pool.Count)]:null);}
     void MarkSeen(Word w){string k="S_"+Hash(w.Key);if(ReadString(k,"").Length==0){string today=DateTime.Today.ToString("yyyy-MM-dd");int n=ReadString("NewDate","")==today?Read("NewCount",0,0,999):0;WriteString("NewDate",today);Write("NewCount",n+1);WriteString(k,"0|"+DateTime.UtcNow.Ticks+"|0|0");}}
-    void Grade(Word w,int grade){string key="S_"+Hash(w.Key);string[] p=ReadString(key,"0|0|0|0").Split('|');int stage=I(p,0),ok=I(p,2),bad=I(p,3);TimeSpan delay;if(grade==0){stage=0;bad++;delay=TimeSpan.FromMinutes(10);}else if(grade==1){stage=Math.Max(0,stage);delay=TimeSpan.FromDays(1);}else if(grade==2){stage=Math.Min(5,stage+1);ok++;int[] days={1,3,7,14,30,90};delay=TimeSpan.FromDays(days[stage]);}else{stage=Math.Min(5,stage+2);ok++;int[] days={1,3,7,14,30,90};delay=TimeSpan.FromDays(days[stage]);}WriteString(key,stage+"|"+DateTime.UtcNow.Add(delay).Ticks+"|"+ok+"|"+bad);UpdateStreak();}
+    void Grade(Word w,int grade,bool revealed){DateTime now=DateTime.UtcNow;MemoryState m=LoadMemory(w);if(m==null)m=new MemoryState();if(grade==0){m.Bad++;m.Difficulty=Math.Min(10,m.Difficulty+0.8);m.Stability=Math.Max(0.05,m.Stability*0.35);m.Due=now.AddMinutes(10);}else{double r=Recall(m,now),factor=(11-m.Difficulty)/6.0,gain=(revealed?1.25:2.0)*factor*(0.35+(1-r)*1.6);if(m.Ok+m.Bad==0)m.Stability=revealed?0.5:2.0;else m.Stability=Math.Min(365,Math.Max(revealed?0.5:1.0,m.Stability*(1+gain)));m.Difficulty=Math.Max(1,Math.Min(10,m.Difficulty+(revealed?0.05:-0.2)));m.Ok++;m.Due=now.AddDays(m.Stability);}m.Last=now;SaveMemory(w,m);UpdateStreak();}
+    MemoryState LoadMemory(Word w){string h=Hash(w.Key),raw=ReadString("M_"+h,"");string[] p=raw.Split('|');double s,d;long due,last;int ok,bad;if(p.Length==7&&p[0]=="A1"&&double.TryParse(p[1],NumberStyles.Float,CultureInfo.InvariantCulture,out s)&&double.TryParse(p[2],NumberStyles.Float,CultureInfo.InvariantCulture,out d)&&long.TryParse(p[3],out due)&&int.TryParse(p[4],out ok)&&int.TryParse(p[5],out bad)&&long.TryParse(p[6],out last)){MemoryState m=new MemoryState();m.Stability=Math.Max(0.05,s);m.Difficulty=Math.Max(1,Math.Min(10,d));m.Due=new DateTime(due,DateTimeKind.Utc);m.Ok=ok;m.Bad=bad;m.Last=new DateTime(last,DateTimeKind.Utc);return m;}string old=ReadString("S_"+h,"");if(old.Length==0)return null;string[] q=old.Split('|');int stage=I(q,0);long ticks;if(!long.TryParse(q.Length>1?q[1]:"0",out ticks)||ticks<DateTime.MinValue.Ticks||ticks>DateTime.MaxValue.Ticks)ticks=DateTime.UtcNow.Ticks;double[] days={0.5,3,7,14,30,90};MemoryState legacy=new MemoryState();legacy.Stability=days[Math.Max(0,Math.Min(days.Length-1,stage))];legacy.Difficulty=5;legacy.Due=new DateTime(ticks,DateTimeKind.Utc);legacy.Ok=I(q,2);legacy.Bad=I(q,3);legacy.Last=legacy.Due.AddDays(-legacy.Stability);return legacy;}
+    void SaveMemory(Word w,MemoryState m){string h=Hash(w.Key);WriteString("M_"+h,"A1|"+m.Stability.ToString("R",CultureInfo.InvariantCulture)+"|"+m.Difficulty.ToString("R",CultureInfo.InvariantCulture)+"|"+m.Due.Ticks+"|"+m.Ok+"|"+m.Bad+"|"+m.Last.Ticks);WriteString("S_"+h,"0|"+m.Due.Ticks+"|"+m.Ok+"|"+m.Bad);}
+    static double Recall(MemoryState m,DateTime now){double elapsed=Math.Max(0,(now-m.Last).TotalDays);return Math.Pow(1+elapsed/(9*Math.Max(0.05,m.Stability)),-1);}
     void OpenWater(){if(wordCard!=null&&!wordCard.IsDisposed){pendingWater=true;SetFoot("喝水时间",TimeSpan.FromMinutes(30));return;}if(waterCard!=null&&!waterCard.IsDisposed){waterCard.Flash();return;}waterCard=new WaterForm(delegate{int n=ReadString("WaterDate","")==DateTime.Today.ToString("yyyy-MM-dd")?Read("WaterCount",0,0,99):0;WriteString("WaterDate",DateTime.Today.ToString("yyyy-MM-dd"));Write("WaterCount",n+1);nextWater=DateTime.Now.AddMinutes(waterMinutes);Play("happy");},delegate{nextWater=DateTime.Now.AddMinutes(snoozeMinutes);Play("wave");});waterCard.FormClosed+=delegate{waterCard=null;if(nextWater<=DateTime.Now)nextWater=DateTime.Now.AddMinutes(snoozeMinutes);SetFoot("",TimeSpan.Zero);if(pendingWord){pendingWord=false;BeginInvoke(new MethodInvoker(OpenWord));}};waterCard.Show(this);PositionBubble(waterCard);SetFoot("喝水时间",TimeSpan.FromMinutes(30));Play("wave");}
     void SetFoot(string text,TimeSpan keep){footStatus=text;statusUntil=DateTime.Now.Add(keep);Invalidate();}
     void OpenLockNotice(){if(lockCard!=null&&!lockCard.IsDisposed)return;lockCard=new NoticeForm("即将锁屏","还剩 1 分钟。移动鼠标、按键或点击按钮即可重新计时。",delegate{realInput=DateTime.UtcNow;warned=false;});lockCard.FormClosed+=delegate{lockCard=null;};lockCard.Show(this);PositionBubble(lockCard);}
