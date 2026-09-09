@@ -28,7 +28,7 @@
 
 ## 下载
 
-普通用户请前往仓库的 **Releases** 页面下载最新版压缩包，解压后运行 `Codex桌宠-v4.7.exe`。
+普通用户请前往仓库的 **Releases** 页面下载最新版压缩包，解压后运行 `Codex桌宠-v4.8.exe`。
 
 系统要求：Windows 7、Windows 8、Windows 8.1、Windows 10 或 Windows 11，并安装 .NET Framework 4.0 或更高版本。
 

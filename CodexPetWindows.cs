@@ -70,10 +70,8 @@ sealed class WordCardForm:BubbleForm {
         unknown=SmallButton("不认识",48,84,86,25,Color.FromArgb(83,91,111));unknown.Click+=delegate{Submit(false);};Controls.Add(unknown);known=SmallButton("认识",151,84,86,25,Theme.Blue);known.Click+=delegate{Submit(true);};Controls.Add(known);
         KeyDown+=delegate(object s,KeyEventArgs e){if(e.KeyCode==Keys.Escape)Close();};Shown+=delegate{if(autoSpeak)Speak();};
     }
-    void Submit(bool yes){grade(yes?2:0);if(yes){Close();return;}title.Text="记忆一下";title.Font=new Font("Microsoft YaHei UI",13,FontStyle.Bold);phonetic.Text=word.Text+"  "+word.Phonetic;meaning.Text=Short(MemoryHint(word),43);meaning.SetBounds(14,57,258,42);Controls.Remove(known);Controls.Remove(unknown);Controls.Remove(sound);System.Windows.Forms.Timer t=new System.Windows.Forms.Timer();t.Interval=4000;t.Tick+=delegate{t.Stop();t.Dispose();Close();};t.Start();}
+    void Submit(bool yes){grade(yes?2:0);Close();}
     static string Short(string s,int n){return s.Length<=n?s:s.Substring(0,n-1)+"…";}
-    static string MemoryHint(Word w){string s=w.Text.ToLowerInvariant();Dictionary<string,string> p=new Dictionary<string,string>();p["un"]="un- 表示‘不、相反’";p["re"]="re- 表示‘再次、返回’";p["pre"]="pre- 表示‘在前、预先’";p["inter"]="inter- 表示‘在……之间’";p["trans"]="trans- 表示‘跨越、转变’";p["sub"]="sub- 表示‘在下、次级’";p["anti"]="anti- 表示‘反对、抵抗’";p["dis"]="dis- 常表示‘分开、否定’";foreach(KeyValuePair<string,string> x in p)if(s.StartsWith(x.Key)&&s.Length>x.Key.Length+3)return x.Value+"；结合中文释义拆分理解。";
-        if(s.EndsWith("tion")||s.EndsWith("sion"))return "-tion/-sion 常把动作变成名词；用例句中的场景记住它。";if(s.EndsWith("ment"))return "-ment 常表示行为、过程或结果；把词义想成一个具体结果。";if(s.EndsWith("able")||s.EndsWith("ible"))return "-able/-ible 表示‘能够……的’；先记词根动作，再记性质。";if(s.EndsWith("ly"))return "-ly 常构成副词；和它对应的形容词一起记。";if(w.Example.Length>0)return "把这个词放回下面的例句场景中，先想画面，再回忆中文。";return "朗读三遍，并用它在脑中造一个与你有关的短句。";}
     void Speak(){try{using(SpeechSynthesizer s=new SpeechSynthesizer()){s.Rate=-1;s.SpeakAsync(word.Text);}}catch{}}
 }
 
