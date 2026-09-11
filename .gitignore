@@ -3,8 +3,10 @@
 *.zip
 *.pdb
 *.log
+*.rar
 bin/
 obj/
+artifacts/
 
 # Local editor and OS files
 .vs/
